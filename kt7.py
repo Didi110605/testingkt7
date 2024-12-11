@@ -1,81 +1,63 @@
-1.import pytest
-import asyncio
-
-async def delayed_function(delay_time):
-    await asyncio.sleep(delay_time)
-    return "done"
+1.import asyncio
+import pytest
 
 @pytest.mark.asyncio
-async def test_function_timeout(event_loop):
-    with pytest.raises(asyncio.TimeoutError):
-        await asyncio.wait_for(delayed_function(3), timeout=2) 
+async def test_future_resolves_with_expected_value():
+    async def sample_async_function():
+        return "expected result"
 
-2.import pytest
-import asyncio
+    result = await sample_async_function()
+    assert result == "expected result"
 
-async def task_1():
-    await asyncio.sleep(1)
-    return "Task 1 done"
-
-async def task_2():
-    await asyncio.sleep(2)
-    return "Task 2 done"
+2.import asyncio
+import pytest
 
 @pytest.mark.asyncio
-async def test_parallel_tasks(event_loop):
-    results = await asyncio.gather(task_1(), task_2())
-    assert results == ["Task 1 done", "Task 2 done"]
+async def test_future_rejects_with_expected_exception():
+    async def sample_async_function():
+        raise ValueError("expected exception")
 
-3.import pytest
-import aiohttp
+    with pytest.raises(ValueError, match="expected exception"):
+        await sample_async_function()
 
-async def fetch_data():
+3.import aiohttp
+import pytest
+
+@pytest.mark.asyncio
+async def test_http_request_to_api():
+    url = "https://jsonplaceholder.typicode.com/todos/1"  # Пример API
     async with aiohttp.ClientSession() as session:
-        async with session.get("https://jsonplaceholder.typicode.com/posts/1") as response:
-            return await response.json()
+        async with session.get(url) as response:
+            assert response.status == 200
+            data = await response.json()
+            assert "userId" in data
+            assert data["id"] == 1
+
+4.import aiosqlite
+import pytest
 
 @pytest.mark.asyncio
-async def test_fetch_data(event_loop):
-    data = await fetch_data()
-
-    assert isinstance(data, dict)
-    assert "id" in data
-    assert data["id"] == 1
-
-4.import pytest
-import aiosqlite
-
-async def insert_record():
-    async with aiosqlite.connect(":memory:") as db:  
-        await db.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)")
-        await db.execute("INSERT INTO test (name) VALUES (?)", ("Alice",))
+async def test_database_record_insertion():
+    async with aiosqlite.connect(":memory:") as db:
+        await db.execute("CREATE TABLE test_table (id INTEGER PRIMARY KEY, name TEXT)")
+        await db.execute("INSERT INTO test_table (name) VALUES (?)", ("test_name",))
         await db.commit()
 
-        async with db.execute("SELECT name FROM test WHERE id=1") as cursor:
+        async with db.execute("SELECT name FROM test_table WHERE id = 1") as cursor:
             row = await cursor.fetchone()
-            return row[0] if row else None
+            assert row[0] == "test_name"
+
+
+
+5. import asyncio
+import pytest
 
 @pytest.mark.asyncio
-async def test_insert_record(event_loop):
-    result = await insert_record()
-    assert result == "Kate" 
+async def test_run_coroutine_in_thread():
+    async def nested_async_function():
+        await asyncio.sleep(0.1)  # симуляция работы
+        return "result from thread"
 
-5. import pytest
-import asyncio
-
-async def task_with_error():
-    await asyncio.sleep(1)
-    raise RuntimeError("Task failed!")
-
-async def normal_task():
-    await asyncio.sleep(1)
-    return "All good."
-
-@pytest.mark.asyncio
-async def test_handle_task_exceptions(event_loop):
-    tasks = [task_with_error(), normal_task()]
-    results = await asyncio.gather(*tasks, return_exceptions=True) 
-
-    assert isinstance(results[0], RuntimeError)  
-    assert str(results[0]) == "Task failed!"
-    assert results[1] == "All good." 
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, asyncio.run, nested_async_function())
+    assert result == "result from thread"
